@@ -20,6 +20,7 @@ type Summary struct {
 	ErrorHistogram              *hdrhistogram.Histogram
 	UncorrectedErrorHistogram   *hdrhistogram.Histogram
 	Throughput                  float64
+	Latencies		    []float64
 }
 
 // String returns a stringified version of the Summary.
@@ -89,4 +90,5 @@ func (s *Summary) merge(o *Summary) {
 	s.ErrorTotal += o.ErrorTotal
 	s.Throughput += o.Throughput
 	s.RequestRate += o.RequestRate
+	s.Latencies = append(s.Latencies, o.Latencies)
 }

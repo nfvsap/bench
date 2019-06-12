@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"time"
 	"strings"
+	"flag"
 	"sync"
 	"bufio"
 	"os"
+	"strconv"
 	"log"
         "net/http"
 	"encoding/json"
@@ -19,8 +21,26 @@ import (
 var wg sync.WaitGroup
 var slice []float64
 var queue = make(chan float64, 1)
+var port = "9080"
+var topics = 10
+var payload = 1000
+var filename = ""
+var natsPort = "4222"
 
+var usageStr = `
+Usage: nats [options]
 
+Test Options:
+	-port <string>     API port (default: 9080)
+	-topics <int>      The number of topics (default: 10)
+	-payload <int>     The payload in bytes
+	-filename <string> The name of file to store the metrics
+	-natsPort <string> Nats Server port (default: 4222)
+`
+
+func usage() {
+	log.Fatalf(usageStr + "\n")
+}
 
 func average(xs[]float64)float64 {
 	total:=0.0
@@ -34,10 +54,11 @@ func average(xs[]float64)float64 {
 
 func runBench(topic string) {
 	defer wg.Done()
-        r := &requester.RedisPubSubRequesterFactory{
-                URL:         ":6379",
-                PayloadSize:  1000,
-                Channel:     topic,
+        r := &requester.NATSStreamingRequesterFactory{
+		URL:         ":" + natsPort,
+                PayloadSize:  payload,
+                Subject:     topic,
+		ClientID:    "benchmark",
         }
 	benchmark := bench.NewBenchmark(r, 0, 1, 3*time.Second, 0)
 	summary, err := benchmark.Run()
@@ -50,18 +71,19 @@ func runBench(topic string) {
 
 func runBenchWithRes(topic string) {
 	defer wg.Done()
-        r := &requester.RedisPubSubRequesterFactory{
-                URL:         ":6379",
-                PayloadSize:  1000,
-                Channel:     topic,
+        r := &requester.NATSStreamingRequesterFactory{
+		URL:         ":" + natsPort,
+                PayloadSize:  payload,
+		Subject:     topic,
+		ClientID:    "benchmark",
         }
 	benchmark := bench.NewBenchmark(r, 0, 1, 3*time.Second, 0)
 	summary, err := benchmark.Run()
 	if err != nil {
 	  panic(err)
 	}
-	//fmt.Println(summary.Throughput)
-	summary.GenerateLatencyDistribution(histwriter.Percentiles{50.0, 90.0}, "redis.txt")
+	fmt.Println(summary.Latencies)
+	summary.GenerateLatencyDistribution(histwriter.Percentiles{50.0, 90.0, 95.0, 99.0}, filename)
 	queue <- summary.Throughput
 }
 
@@ -77,14 +99,25 @@ func RandomString(len int) string {
 
 
 func main() {
+
+	flag.StringVar(&port, "port", "9080", "API Port")
+	flag.IntVar(&topics, "topics", 10, "The number of topics")
+	flag.IntVar(&payload, "payload", 1000, "The payload in bytes")
+	flag.StringVar(&filename, "filename", "", "The name of file to store the metrics")
+	flag.StringVar(&natsPort, "natsPort", "4222", "Nats server port")
+
+	flag.Usage = usage
+	flag.Parse()
+
 	fmt.Println("Starting benchmark")
 	go func() {
-	  for { 
+	  for {
 		fmt.Println("\n\nStarting new iteration")
-		wg.Add(26)
-		for i := 0; i < 25; i++ {
-			topic := RandomString(26)
+		wg.Add(topics+1)
+		for i := 0; i < topics; i++ {
+			//topic := RandomString(26)
 			//fmt.Println(topic)
+			topic := "foo_" + strconv.Itoa(i)
 			go runBench(topic)
 		}
 		go runBenchWithRes("collector")
@@ -102,7 +135,7 @@ func main() {
 		//fmt.Println(slice)
 		fmt.Println("Average throughput:")
 		fmt.Println(average(slice))
-		f, _ := os.Open("redis.txt")
+		f, _ := os.Open(filename)
 		fs := bufio.NewScanner(f)
 		lateMap := make(map[string]string)
 		for fs.Scan() {
@@ -111,7 +144,7 @@ func main() {
 				continue
 			}
 			splitted := strings.Split(txt," ")
-			var slc []string 
+			var slc []string
 			for _, str := range splitted {
 				if str != ""{
 					slc = append(slc, str)
@@ -129,7 +162,7 @@ func main() {
 	  }
 	}()
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		f, _ := os.Open("redis.txt")
+		f, _ := os.Open(filename)
 		fs := bufio.NewScanner(f)
 		lateMap := make(map[string]string)
 		for fs.Scan() {
@@ -138,7 +171,7 @@ func main() {
 				continue
 			}
 			splitted := strings.Split(txt," ")
-			var slc []string 
+			var slc []string
 			for _, str := range splitted {
 				if str != ""{
 					slc = append(slc, str)
@@ -158,6 +191,6 @@ func main() {
 		w.Write(slcB)
 	})
 
-	log.Fatal(http.ListenAndServe(":9080", nil))
+	log.Fatal(http.ListenAndServe(":" + port, nil))
 	//summary.GenerateLatencyDistribution(nil, "redis.txt")
 }

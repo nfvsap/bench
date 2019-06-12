@@ -146,7 +146,7 @@ type connectionBenchmark struct {
 	errorTotal                  uint64
 	elapsed                     time.Duration
 	burst                       int
-	latencies                   []float64
+	latencies                   []int64
 }
 
 // newConnectionBenchmark creates a connectionBenchmark which runs a system
@@ -175,7 +175,7 @@ func newConnectionBenchmark(requester Requester, requestRate uint64, duration ti
 		errorHistogram:              hdrhistogram.New(1, maxRecordableLatencyNS, sigFigs),
 		uncorrectedErrorHistogram:   hdrhistogram.New(1, maxRecordableLatencyNS, sigFigs),
 		burst: int(burst),
-		latencies: []float64,
+		latencies: make([]int64, 0),
 	}
 }
 
@@ -295,6 +295,6 @@ func (c *connectionBenchmark) summarize() *Summary {
 		UncorrectedErrorHistogram:   hdrhistogram.Import(c.uncorrectedErrorHistogram.Export()),
 		Throughput:                  float64(c.successTotal+c.errorTotal) / c.elapsed.Seconds(),
 		RequestRate:                 c.requestRate,
-		Latencies:		     c.latencies,
+		Latencies:		             c.latencies,
 	}
 }

@@ -13,9 +13,9 @@ import (
         "net/http"
 	"encoding/json"
 	"math/rand"
-	"github.com/tylertreat/bench"
+	"github.com/nfvsap/bench"
 	"github.com/tylertreat/hdrhistogram-writer"
-	"github.com/tylertreat/bench/requester"
+	"github.com/nfvsap/bench/requester"
 )
 
 var wg sync.WaitGroup

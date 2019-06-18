@@ -13,9 +13,9 @@ import (
         "net/http"
 	"encoding/json"
 	"math/rand"
-	"github.com/nfvsap/bench"
+	"github.com/bench"
 	"github.com/tylertreat/hdrhistogram-writer"
-	"github.com/nfvsap/bench/requester"
+	"github.com/bench/requester"
 )
 
 var wg sync.WaitGroup
@@ -26,6 +26,8 @@ var topics = 10
 var payload = 1000
 var filename = ""
 var natsPort = "4222"
+var avgLatency = 0.0
+var throughput = 0.0
 
 var usageStr = `
 Usage: nats [options]
@@ -50,7 +52,14 @@ func average(xs[]float64)float64 {
 	return total/float64(len(xs))
 }
 
-
+func averageInt(xs[]int64)float64 {
+	var total int64
+	total = 0
+	for _,v:=range xs {
+		total +=v
+	}
+	return float64(total)/float64(len(xs))
+}
 
 func runBench(topic string) {
 	defer wg.Done()
@@ -82,11 +91,12 @@ func runBenchWithRes(topic string) {
 	if err != nil {
 	  panic(err)
 	}
-	fmt.Println(summary.Latencies)
+	//fmt.Println(summary.Latencies)
+	avgLatency = averageInt(summary.Latencies)
+	throughput = summary.Throughput
 	summary.GenerateLatencyDistribution(histwriter.Percentiles{50.0, 90.0, 95.0, 99.0}, filename)
 	queue <- summary.Throughput
 }
-
 
 //RandomString - Generate a random string of A-Z chars with len = l
 func RandomString(len int) string {
@@ -184,6 +194,8 @@ func main() {
 			lateMap[slc[1]] = slc[0]
 		}
 		//fmt.Println(lateMap)
+		lateMap["AverageLatency"] = strconv.FormatFloat(avgLatency / 1000000.0, 'f', -1, 64)
+		lateMap["Throughput"] = strconv.FormatFloat(throughput, 'f', -1, 64)
 		slcB, _ := json.Marshal(lateMap)
 		// fmt.Println(string(slcB))
 		w.Header().Set("Content-Type", "application/json")

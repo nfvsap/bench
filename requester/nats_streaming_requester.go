@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/nats-io/go-nats-streaming"
-	"github.com/tylertreat/bench"
+	"github.com/bench"
 )
 
 // NATSStreamingRequesterFactory implements RequesterFactory by creating a
@@ -83,7 +83,7 @@ func (n *natsStreamingRequester) Request() error {
 // Teardown is called upon benchmark completion.
 func (n *natsStreamingRequester) Teardown() error {
 	if err := n.sub.Unsubscribe(); err != nil {
-		return err
+		return nil
 	}
 	n.sub = nil
 	n.conn.Close()
